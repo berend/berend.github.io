@@ -1,0 +1,52 @@
+<!doctype html><html lang=en-us><head><title>Openapi Discriminator With Go | Berend Kapelle</title><meta charset=utf-8><meta http-equiv=x-ua-compatible content="IE=edge,chrome=1"><meta name=viewport content="width=device-width,minimum-scale=1"><meta name=description content="I just recently solved a problem I had for a while. After winter holidays I decided to come back to it and solve it.
+I have a openapi schema, that documents and validates a small web app. It made use of the oneOf operator to allow different sub documents for some requests.
+However - when the request is slightly off for one of those sub document schema - none of those sub documents matches."><meta name=generator content="Hugo 0.109.0"><meta name=ROBOTS content="NOINDEX, NOFOLLOW"><link rel=stylesheet href=/css/style.css><link rel="shortcut icon" href=/images/favicon.ico type=image/x-icon></head><body><nav class=navigation><a href=/><span class=arrow>←</span>Home</a>
+<a href=/posts>Archive</a>
+<a href=/tags>Tags</a>
+<a href=/about>About</a></nav><main class=main><section id=single><h1 class=title>Openapi Discriminator With Go</h1><div class=tip><time datetime="2023-01-04 21:58:12 +0100 +0100">Jan 4, 2023</time>
+<span class=split>·</span>
+<span>392 words</span>
+<span class=split>·</span>
+<span>2 minute read</span></div><div class=content><p>I just recently solved a problem I had for a while. After winter holidays I decided to come back to it and solve it.</p><p>I have a openapi schema, that documents and validates a small web app. It made use of the <code>oneOf</code> operator to allow different sub documents for some requests.</p><p>However - when the request is slightly off for one of those sub document schema - <em>none</em> of those sub documents matches. In complex schema and during development this can be tedious. The validation lib I am using can not display <em>any</em> error message and just show an empty string as error in older version. With the current version it displays all sub schemas and their error. Both not really helpful.</p><p>But there is a better way! The openapi spec allow to add a discriminator that gives the hint, what sub document schema should be uses for the given object.</p><p>Let&rsquo;s look at an example (complete code below in gists):</p><p>Here are the two sub documents:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-yaml data-lang=yaml><span style=display:flex><span><span style=color:#f92672>oneOf</span>:
+</span></span><span style=display:flex><span>- <span style=color:#f92672>$ref</span>: <span style=color:#e6db74>&#34;#/components/schemas/foo&#34;</span>
+</span></span><span style=display:flex><span>- <span style=color:#f92672>$ref</span>: <span style=color:#e6db74>&#34;#/components/schemas/bar&#34;</span>
+</span></span><span style=display:flex><span><span style=color:#f92672>discriminator</span>:
+</span></span><span style=display:flex><span><span style=color:#f92672>propertyName</span>: <span style=color:#ae81ff>thing_type</span>
+</span></span><span style=display:flex><span><span style=color:#f92672>mapping</span>:
+</span></span><span style=display:flex><span>    <span style=color:#f92672>foo</span>: <span style=color:#e6db74>&#34;#/components/schemas/foo&#34;</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>bar</span>: <span style=color:#e6db74>&#34;#/components/schemas/bar&#34;</span>
+</span></span></code></pre></div><p>and the two sub document schemas:</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-yaml data-lang=yaml><span style=display:flex><span><span style=color:#f92672>foo</span>:
+</span></span><span style=display:flex><span>    <span style=color:#f92672>properties</span>:
+</span></span><span style=display:flex><span>    <span style=color:#f92672>thing_type</span>:
+</span></span><span style=display:flex><span>        <span style=color:#f92672>type</span>: <span style=color:#ae81ff>string</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>a_value</span>:
+</span></span><span style=display:flex><span>        <span style=color:#f92672>type</span>: <span style=color:#ae81ff>string</span>
+</span></span><span style=display:flex><span><span style=color:#f92672>bar</span>:
+</span></span><span style=display:flex><span>    <span style=color:#f92672>properties</span>:
+</span></span><span style=display:flex><span>    <span style=color:#f92672>thing_type</span>:
+</span></span><span style=display:flex><span>        <span style=color:#f92672>type</span>: <span style=color:#ae81ff>string</span>
+</span></span><span style=display:flex><span>    <span style=color:#f92672>a_value</span>:
+</span></span><span style=display:flex><span>        <span style=color:#f92672>type</span>: <span style=color:#ae81ff>number</span>
+</span></span></code></pre></div><p>Both have the <code>thing_type</code> in common. This serves as discriminator and gives the hint for the schema validator. The openapi has a mapping, where we define the discriminator propertyName and a mapping from <code>thing_type</code> to the corresponding schema part.</p><p>So - in short - foo wants a string value, bar wants a number.</p><p>When we now send foo a boolean and not a string</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-json data-lang=json><span style=display:flex><span>{<span style=color:#f92672>&#34;thing_type&#34;</span>:<span style=color:#e6db74>&#34;foo&#34;</span>, <span style=color:#f92672>&#34;a_value&#34;</span>:<span style=color:#66d9ef>false</span>}
+</span></span></code></pre></div><p>we get a detailed error message, just about what is wrong with the foo type, since the discriminator hint is working</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-text data-lang=text><span style=display:flex><span>doesn&#39;t match schema: 
+</span></span><span style=display:flex><span>Error at &#34;/a_value&#34;: field must be set to string or not be present
+</span></span></code></pre></div><p>Without this discriminator hint, we get the (lengthy) error message</p><div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-text data-lang=text><span style=display:flex><span>doesn&#39;t match schema: doesn&#39;t match schema due to: 
+</span></span><span style=display:flex><span>Error at &#34;/a_value&#34;: field must be set to string or not be present
+</span></span><span style=display:flex><span>Schema:
+</span></span><span style=display:flex><span>  {
+</span></span><span style=display:flex><span>    &#34;type&#34;: &#34;string&#34;
+</span></span><span style=display:flex><span>  }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>Value:
+</span></span><span style=display:flex><span>  &#34;boolean&#34;
+</span></span><span style=display:flex><span> Or Error at &#34;/a_value&#34;: field must be set to number or not be present
+</span></span><span style=display:flex><span>Schema:
+</span></span><span style=display:flex><span>  {
+</span></span><span style=display:flex><span>    &#34;type&#34;: &#34;number&#34;
+</span></span><span style=display:flex><span>  }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>Value:
+</span></span><span style=display:flex><span>  &#34;boolean&#34;
+</span></span></code></pre></div><p>If your schema is more complex and has more than two sub document, that are allowed, the hinted error message is way better.</p><p>Complete code</p><script type=application/javascript src=https://gist.github.com/berend/0ce5cf2dfb513f7acca93016b74eb735.js></script></div></section></main><footer id=footer><div class=copyright>© Copyright
+2023
+<span class=split><svg fill="#bbb" width="15" height="15" id="heart-15" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 15 15"><path d="M13.91 6.75c-1.17 2.25-4.3 5.31-6.07 6.94-.1903.1718-.4797.1718-.67.0C5.39 12.06 2.26 9 1.09 6.75-1.48 1.8 5-1.5 7.5 3.45 10-1.5 16.48 1.8 13.91 6.75z"/></svg></span></div><div class=powerby>Powered by <a href=http://www.gohugo.io/>Hugo</a> Theme By <a href=https://github.com/nodejh/hugo-theme-mini>nodejh</a></div></footer></body></html>
