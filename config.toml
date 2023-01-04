@@ -1,0 +1,5 @@
+baseURL = 'https://berend.github.io/'
+languageCode = 'en-us'
+title = 'Berend Kapelle'
+theme = 'mini'
+showToc = true
